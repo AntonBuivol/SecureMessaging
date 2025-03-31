@@ -1,0 +1,16 @@
+﻿<Shell xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+       xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+       xmlns:views="clr-namespace:SecureMessaging.Views"
+       xmlns:auth="clr-namespace:SecureMessaging.Views.Auth"
+       x:Class="SecureMessaging.AppShell"
+       FlyoutBehavior="Disabled">
+
+    <!-- Регистрация всех маршрутов -->
+    <ShellContent Route="MainPage" ContentTemplate="{DataTemplate views:MainPage}" />
+    <ShellContent Route="LoginPage" ContentTemplate="{DataTemplate auth:LoginPage}" />
+    <ShellContent Route="RegisterPage" ContentTemplate="{DataTemplate auth:RegisterPage}" />
+    <ShellContent Route="ChatListPage" ContentTemplate="{DataTemplate views:ChatListPage}" />
+    <ShellContent Route="ChatPage" ContentTemplate="{DataTemplate views:ChatPage}" />
+    <ShellContent Route="ProfileSettingsPage" ContentTemplate="{DataTemplate views:ProfileSettingsPage}" />
+    <ShellContent Route="AppSettingsPage" ContentTemplate="{DataTemplate views:AppSettingsPage}" />
+</Shell>

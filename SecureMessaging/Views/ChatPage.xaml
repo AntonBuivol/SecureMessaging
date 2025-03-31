@@ -1,0 +1,41 @@
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="SecureMessaging.Views.ChatPage"
+             Title="Messages">
+
+    <Grid RowDefinitions="Auto,*">
+        <!-- Search Bar -->
+        <SearchBar Grid.Row="0"
+                   Placeholder="Search users..."
+                   TextChanged="OnSearchTextChanged"/>
+
+        <!-- Users List -->
+        <CollectionView Grid.Row="1"
+                       ItemsSource="{Binding Users}"
+                       SelectionMode="Single"
+                       SelectionChangedCommand="{Binding StartChatCommand}">
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <Grid Padding="10">
+                        <Frame CornerRadius="15">
+                            <StackLayout Orientation="Horizontal" Spacing="10">
+                                <Image Source="{Binding AvatarUrl, FallbackValue='default_avatar.png'}"
+                                       WidthRequest="50"
+                                       HeightRequest="50"
+                                       Aspect="AspectFill"/>
+
+                                <StackLayout VerticalOptions="Center">
+                                    <Label Text="{Binding DisplayName, FallbackValue={Binding Username}}"
+                                           FontSize="16"/>
+                                    <Label Text="{Binding Username}"
+                                           FontSize="14"
+                                           TextColor="Gray"/>
+                                </StackLayout>
+                            </StackLayout>
+                        </Frame>
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+    </Grid>
+</ContentPage>

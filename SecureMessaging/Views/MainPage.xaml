@@ -1,0 +1,31 @@
+﻿<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="SecureMessaging.Views.MainPage"
+             xmlns:converters="clr-namespace:SecureMessaging.Converters"
+             Title="Secure Messaging">
+    
+    <ContentPage.Resources>
+        <ResourceDictionary>
+            <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
+        </ResourceDictionary>
+    </ContentPage.Resources>
+    
+    <Frame IsVisible="{Binding IsLoggedIn, Converter={StaticResource InverseBoolConverter}}"
+           Padding="20"
+           HorizontalOptions="Center"
+           VerticalOptions="Center">
+        <StackLayout Spacing="20">
+            <Label Text="Welcome to Secure Messaging"
+                   FontSize="20"
+                   HorizontalOptions="Center" />
+
+            <Button Text="Login"
+                    Command="{Binding GoToLoginCommand}"
+                    HorizontalOptions="FillAndExpand" />
+
+            <Button Text="Register"
+                    Command="{Binding GoToRegisterCommand}"
+                    HorizontalOptions="FillAndExpand" />
+        </StackLayout>
+    </Frame>
+</ContentPage>

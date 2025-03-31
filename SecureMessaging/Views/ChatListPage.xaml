@@ -1,0 +1,93 @@
+﻿<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="SecureMessaging.Views.ChatListPage"
+             Title="Chats">
+
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Search" IconImageSource="search.png" Command="{Binding ToggleSearchCommand}" />
+        <ToolbarItem Text="Menu" IconImageSource="menu.png" Command="{Binding OpenMenuCommand}" />
+    </ContentPage.ToolbarItems>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Search Bar (hidden by default) -->
+        <SearchBar Grid.Row="0"
+                   Text="{Binding SearchQuery}"
+                   Placeholder="Search users..."
+                   IsVisible="{Binding IsSearchVisible}"
+                   SearchCommand="{Binding SearchCommand}"/>
+
+        <!-- Chat List -->
+        <RefreshView Grid.Row="1"
+                     IsRefreshing="{Binding IsRefreshing}"
+                     Command="{Binding RefreshCommand}">
+            <CollectionView ItemsSource="{Binding DisplayItems}"
+                            SelectionMode="None">
+                <CollectionView.EmptyView>
+                    <Label Text="No chats found"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center"/>
+                </CollectionView.EmptyView>
+
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="10">
+                            <Frame>
+                                <StackLayout>
+                                    <Label Text="{Binding ChatName}"
+                                           FontSize="16" />
+                                    <Label Text="{Binding LastMessage.Content}"
+                                           FontSize="14"
+                                           TextColor="Gray" />
+                                </StackLayout>
+                            </Frame>
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </RefreshView>
+
+        <!-- Search Results (overlay when searching) -->
+        <Grid Grid.Row="1"
+              IsVisible="{Binding IsSearching}"
+              BackgroundColor="{AppThemeBinding Light=White, Dark=Black}"
+              Opacity="0.95">
+            <CollectionView ItemsSource="{Binding SearchResults}"
+                            SelectionMode="Single"
+                            SelectionChangedCommand="{Binding OpenChatWithUserCommand}">
+                <CollectionView.EmptyView>
+                    <Label Text="No users found"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center"/>
+                </CollectionView.EmptyView>
+
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="10">
+                            <Frame>
+                                <StackLayout Orientation="Horizontal">
+                                    <Image Source="{Binding AvatarUrl, FallbackValue='default_avatar.png'}"
+                                           WidthRequest="40"
+                                           HeightRequest="40"
+                                           Aspect="AspectFill"/>
+
+                                    <StackLayout>
+                                        <Label Text="{Binding DisplayName, FallbackValue={Binding Username}}"
+                                               FontSize="16" />
+                                        <Label Text="@{Binding Username}"
+                                               FontSize="14"
+                                               TextColor="Gray" />
+                                    </StackLayout>
+                                </StackLayout>
+                            </Frame>
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </Grid>
+    </Grid>
+</ContentPage>

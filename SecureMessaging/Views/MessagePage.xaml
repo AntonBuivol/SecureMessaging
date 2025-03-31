@@ -1,0 +1,36 @@
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="SecureMessaging.Views.MessagePage"
+             Title="{Binding ChatName}">
+
+    <Grid RowDefinitions="*,Auto">
+        <!-- Messages -->
+        <CollectionView ItemsSource="{Binding Messages}">
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <Grid Padding="10">
+                        <Frame Padding="10" CornerRadius="10">
+                            <StackLayout>
+                                <Label Text="{Binding Content}"/>
+                                <Label Text="{Binding CreatedAt, StringFormat='{0:HH:mm}'}"
+                                       FontSize="12"
+                                       HorizontalOptions="End"/>
+                            </StackLayout>
+                        </Frame>
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+        <!-- Message Input -->
+        <Grid Grid.Row="1" Padding="10" ColumnDefinitions="*,Auto">
+            <Entry Text="{Binding MessageText}"
+                   Placeholder="Type a message..."
+                   Grid.Column="0"/>
+
+            <Button Text="Send"
+                    Command="{Binding SendMessageCommand}"
+                    Grid.Column="1"/>
+        </Grid>
+    </Grid>
+</ContentPage>

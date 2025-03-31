@@ -1,0 +1,60 @@
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:views="clr-namespace:SecureMessaging.Views"
+             x:Class="SecureMessaging.Views.AppSettingsPage"
+             Title="App Settings">
+
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Back" Command="{Binding GoBackCommand}" />
+    </ContentPage.ToolbarItems>
+
+    <ScrollView>
+        <StackLayout Padding="20" Spacing="15">
+            <Label Text="Current Device" FontAttributes="Bold" />
+            <Frame>
+                <StackLayout>
+                    <Label Text="{Binding CurrentDevice.DeviceName}" />
+                    <Label Text="{Binding CurrentDevice.DeviceModel}" />
+                    <Label Text="{Binding CurrentDevice.OsVersion}" />
+                </StackLayout>
+            </Frame>
+
+            <Label Text="Other Devices" FontAttributes="Bold" />
+            <CollectionView ItemsSource="{Binding OtherDevices}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="10">
+                            <Frame>
+                                <StackLayout>
+                                    <Label Text="{Binding DeviceName}" />
+                                    <Label Text="{Binding DeviceModel}" />
+                                    <Label Text="{Binding OsVersion}" />
+                                    <Label Text="{Binding LastLogin, StringFormat='Last login: {0}'}" />
+                                    <Button Text="Logout Device" 
+                                            Command="{Binding Source={RelativeSource AncestorType={x:Type views:AppSettingsPage}}, Path=LogoutDeviceCommand}"
+                                            CommandParameter="{Binding Id}" />
+                                </StackLayout>
+                            </Frame>
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+
+            <Label Text="Chat Settings" FontAttributes="Bold" />
+            <StackLayout>
+                <Label Text="Message Font Size" />
+                <Slider Minimum="12" Maximum="24" Value="{Binding FontSize}" />
+
+                <Label Text="Theme" />
+                <Picker SelectedIndex="{Binding ThemeIndex}">
+                    <Picker.Items>
+                        <x:String>Light</x:String>
+                        <x:String>Dark</x:String>
+                    </Picker.Items>
+                </Picker>
+            </StackLayout>
+
+            <Button Text="Save Settings" Command="{Binding SaveSettingsCommand}" />
+        </StackLayout>
+    </ScrollView>
+</ContentPage>
