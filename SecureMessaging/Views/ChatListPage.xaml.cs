@@ -79,22 +79,15 @@ public partial class ChatListPage : ContentPage
 
         try
         {
-            IsBusy = true;
-            OnPropertyChanged(nameof(IsBusy));
-
             var chat = await _chatService.GetOrCreateDirectChat(user.Id);
-            await Shell.Current.GoToAsync($"ChatPage?chatId={chat.Id}");
+            await Shell.Current.GoToAsync($"///ChatPage?chatId={chat.Id}");
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", $"Failed to start chat: {ex.Message}", "OK");
-        }
-        finally
-        {
-            IsBusy = false;
-            OnPropertyChanged(nameof(IsBusy));
+            await DisplayAlert("Error", $"Failed to open chat: {ex.Message}", "OK");
         }
     });
+
 
     public ICommand GoToSettingsCommand => new Command(async () =>
     {

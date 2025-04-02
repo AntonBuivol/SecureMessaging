@@ -25,8 +25,27 @@ public partial class ChatPage : ContentPage
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        _chatId = Shell.Current.CurrentState.Location.OriginalString.Split('=')[1];
-        await LoadMessages();
+
+        if (Shell.Current.CurrentState.Location.OriginalString.Contains("chatId="))
+        {
+            var query = Shell.Current.CurrentState.Location.Query;
+            if (QueryStringHelper.GetQueryParam(query, "chatId") is string chatId)
+            {
+                _chatId = chatId;
+                await LoadMessages();
+            }
+        }
+    }
+
+    public static class QueryStringHelper
+    {
+        public static string GetQueryParam(string query, string paramName)
+        {
+            if (string.IsNullOrWhiteSpace(query)) return null;
+
+            var queryParams = System.Web.HttpUtility.ParseQueryString(query);
+            return queryParams[paramName];
+        }
     }
 
     private async Task LoadMessages()
@@ -44,7 +63,7 @@ public partial class ChatPage : ContentPage
     {
         if (!string.IsNullOrWhiteSpace(MessageText))
         {
-            await _chatService.SendMessage(_chatId, MessageText); // Убрали senderId
+            await _chatService.SendMessage(_chatId, MessageText);
             MessageText = string.Empty;
             OnPropertyChanged(nameof(MessageText));
             await LoadMessages();

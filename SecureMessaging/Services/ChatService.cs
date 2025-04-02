@@ -72,75 +72,100 @@ public class ChatService
 
     public async Task<Chat> GetOrCreateDirectChat(string targetUserId)
     {
-        var currentUserId = _authService.CurrentUser.Id;
+        try
+        {
+            var currentUserId = _authService.CurrentUser.Id;
 
-        // Альтернативный способ поиска существующего чата
-        var existingChat = await FindExistingDirectChat(currentUserId, targetUserId);
-        if (existingChat != null)
-            return existingChat;
+            // Проверяем существующий чат
+            var existingChat = await FindExistingDirectChat(currentUserId, targetUserId);
+            if (existingChat != null)
+                return existingChat;
 
-        // Создание нового чата
-        return await CreateNewDirectChat(currentUserId, targetUserId);
+            // Создаем новый чат
+            return await CreateNewDirectChat(currentUserId, targetUserId);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error in GetOrCreateDirectChat: {ex.Message}");
+            throw; // Перебрасываем исключение для обработки на уровне UI
+        }
     }
+
 
     private async Task<Chat> FindExistingDirectChat(string userId1, string userId2)
     {
-        // Получаем все чаты первого пользователя
-        var user1Chats = await _supabase.Client.From<ChatParticipant>()
-            .Select("chat!inner(*)")
-            .Filter("user_id", Operator.Equals, userId1)
-            .Filter("chat.is_direct_message", Operator.Equals, true)
-            .Get();
-
-        // Проверяем каждый чат на наличие второго пользователя
-        foreach (var participant in user1Chats.Models)
+        try
         {
-            var exists = await _supabase.Client.From<ChatParticipant>()
-                .Where(x => x.ChatId == participant.ChatId && x.UserId == userId2)
-                .Single();
+            // Получаем все чаты первого пользователя
+            var user1ChatsResponse = await _supabase.Client.From<ChatParticipant>()
+                .Select("chat!inner(*)")
+                .Filter("user_id", Operator.Equals, userId1)
+                .Filter("chat.is_direct_message", Operator.Equals, true)
+                .Get();
 
-            if (exists != null)
+            if (user1ChatsResponse.ResponseMessage.IsSuccessStatusCode)
             {
-                return await _supabase.Client.From<Chat>()
-                    .Where(x => x.Id == participant.ChatId)
-                    .Single();
+                // Проверяем каждый чат на наличие второго пользователя
+                foreach (var participant in user1ChatsResponse.Models)
+                {
+                    var existsResponse = await _supabase.Client.From<ChatParticipant>()
+                        .Filter("chat_id", Operator.Equals, participant.ChatId)
+                        .Filter("user_id", Operator.Equals, userId2)
+                        .Single();
+
+                    if (existsResponse != null)
+                    {
+                        var chatResponse = await _supabase.Client.From<Chat>()
+                            .Filter("id", Operator.Equals, participant.ChatId)
+                            .Single();
+
+                        return chatResponse;
+                    }
+                }
             }
         }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error finding existing chat: {ex.Message}");
+        }
+
         return null;
     }
 
+
     private async Task<Chat> CreateNewDirectChat(string userId1, string userId2)
     {
-        var targetUser = await _supabase.Client.From<User>()
-            .Where(x => x.Id == userId2)
-            .Single();
-
-        var newChat = new Chat
+        try
         {
-            IsDirectMessage = true,
-            ChatName = targetUser.DisplayName ?? targetUser.Username,
-            CreatedAt = DateTime.UtcNow
+            var targetUser = await _supabase.Client.From<User>()
+                .Filter("id", Operator.Equals, userId2)
+                .Single();
+
+            var newChat = new Chat
+            {
+                IsDirectMessage = true,
+                ChatName = targetUser.DisplayName ?? targetUser.Username,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var chatResponse = await _supabase.Client.From<Chat>().Insert(newChat);
+
+            // Добавляем участников
+            var participants = new List<ChatParticipant>
+        {
+            new ChatParticipant { ChatId = chatResponse.Model.Id, UserId = userId1, CreatedAt = DateTime.UtcNow },
+            new ChatParticipant { ChatId = chatResponse.Model.Id, UserId = userId2, CreatedAt = DateTime.UtcNow }
         };
 
-        var chatResponse = await _supabase.Client.From<Chat>().Insert(newChat);
+            await _supabase.Client.From<ChatParticipant>().Insert(participants);
 
-        await _supabase.Client.From<ChatParticipant>().Insert(new[]
-        {
-        new ChatParticipant
-        {
-            ChatId = chatResponse.Model.Id,
-            UserId = userId1,
-            CreatedAt = DateTime.UtcNow
-        },
-        new ChatParticipant
-        {
-            ChatId = chatResponse.Model.Id,
-            UserId = userId2,
-            CreatedAt = DateTime.UtcNow
+            return chatResponse.Model;
         }
-    });
-
-        return chatResponse.Model;
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error creating new chat: {ex.Message}");
+            throw;
+        }
     }
 
     public async Task<List<Message>> GetChatMessages(string chatId)
