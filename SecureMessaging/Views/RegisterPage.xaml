@@ -3,19 +3,11 @@
              x:Class="SecureMessaging.Views.Auth.RegisterPage"
              Title="Register">
 
-    <ScrollView>
-        <StackLayout Padding="20" Spacing="15">
-            <Label Text="Register" FontSize="Title" HorizontalOptions="Center" />
-
-            <Entry Placeholder="Username" Text="{Binding Username}" />
-            <Entry Placeholder="Password" Text="{Binding Password}" IsPassword="True" />
-            <Entry Placeholder="Confirm Password" Text="{Binding ConfirmPassword}" IsPassword="True" />
-            <Entry Placeholder="Display Name" Text="{Binding DisplayName}" />
-
-            <Button Text="Register" Command="{Binding RegisterCommand}" />
-
-            <Label Text="Already have an account?" HorizontalOptions="Center" />
-            <Button Text="Login" Command="{Binding GoToLoginCommand}" />
-        </StackLayout>
-    </ScrollView>
+    <StackLayout Padding="20" Spacing="15">
+        <Entry Placeholder="Username" Text="{Binding Username}" />
+        <Entry Placeholder="Password" Text="{Binding Password}" IsPassword="True" />
+        <Entry Placeholder="Display Name" Text="{Binding DisplayName}" />
+        <Button Text="Register" Command="{Binding RegisterCommand}" />
+        <Button Text="Back to Login" Command="{Binding GoToLoginCommand}" />
+    </StackLayout>
 </ContentPage>

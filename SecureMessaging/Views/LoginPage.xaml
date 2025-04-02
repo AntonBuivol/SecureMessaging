@@ -3,17 +3,10 @@
              x:Class="SecureMessaging.Views.Auth.LoginPage"
              Title="Login">
 
-    <ScrollView>
-        <StackLayout Padding="20" Spacing="15">
-            <Label Text="Login" FontSize="Title" HorizontalOptions="Center" />
-
-            <Entry Placeholder="Username" Text="{Binding Username}" />
-            <Entry Placeholder="Password" Text="{Binding Password}" IsPassword="True" />
-
-            <Button Text="Login" Command="{Binding LoginCommand}" />
-
-            <Label Text="Don't have an account?" HorizontalOptions="Center" />
-            <Button Text="Register" Command="{Binding GoToRegisterCommand}" />
-        </StackLayout>
-    </ScrollView>
+    <StackLayout Padding="20" Spacing="15">
+        <Entry Placeholder="Username" Text="{Binding Username}" />
+        <Entry Placeholder="Password" Text="{Binding Password}" IsPassword="True" />
+        <Button Text="Login" Command="{Binding LoginCommand}" />
+        <Button Text="Register" Command="{Binding GoToRegisterCommand}" />
+    </StackLayout>
 </ContentPage>

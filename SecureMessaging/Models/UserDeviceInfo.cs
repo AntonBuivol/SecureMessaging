@@ -15,12 +15,6 @@ public class UserDeviceInfo : BaseModel
     [Column("device_name")]
     public string DeviceName { get; set; }
 
-    [Column("device_model")]
-    public string DeviceModel { get; set; }
-
-    [Column("os_version")]
-    public string OsVersion { get; set; }
-
     [Column("device_id")]
     public string DeviceId { get; set; }
 

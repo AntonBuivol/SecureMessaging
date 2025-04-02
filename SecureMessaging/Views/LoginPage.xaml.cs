@@ -18,16 +18,7 @@ public partial class LoginPage : ContentPage
 
     public Command LoginCommand => new Command(async () =>
     {
-        if (string.IsNullOrWhiteSpace(Username) || string.IsNullOrWhiteSpace(Password))
-        {
-            await DisplayAlert("Error", "Please enter credentials", "OK");
-            return;
-        }
-
-        // Правильное использование await с Task<bool>
-        bool loginSuccess = await _authService.Login(Username, Password);
-
-        if (loginSuccess)
+        if (await _authService.Login(Username, Password))
         {
             await Shell.Current.GoToAsync("///ChatListPage");
         }
@@ -38,5 +29,7 @@ public partial class LoginPage : ContentPage
     });
 
     public Command GoToRegisterCommand => new Command(async () =>
-        await Shell.Current.GoToAsync("///RegisterPage"));
+    {
+        await Shell.Current.GoToAsync("///RegisterPage");
+    });
 }

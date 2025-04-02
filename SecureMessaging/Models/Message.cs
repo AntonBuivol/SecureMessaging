@@ -18,12 +18,6 @@ public class Message : BaseModel
     [Column("content")]
     public string Content { get; set; }
 
-    [Column("media_url")]
-    public string MediaUrl { get; set; }
-
-    [Column("media_type")]
-    public string MediaType { get; set; }
-
     [Column("created_at")]
     public DateTime CreatedAt { get; set; }
 }

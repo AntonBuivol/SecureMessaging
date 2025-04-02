@@ -8,232 +8,187 @@ namespace SecureMessaging.Services;
 
 public class AuthService
 {
-    private const string UserIdKey = "user_id";
-    private const string DeviceIdKey = "device_id";
-
     private readonly SupabaseService _supabase;
-    private readonly ChatService _chatService;
-    private readonly IServiceProvider _serviceProvider;
+    private User _currentUser;
 
-    public AuthService(SupabaseService supabase, IServiceProvider serviceProvider)
+    public AuthService(SupabaseService supabase)
     {
         _supabase = supabase;
-        _serviceProvider = serviceProvider;
     }
 
-    public async Task<bool> IsLoggedIn()
-    {
-        try
-        {
-            var userId = await SecureStorage.Default.GetAsync(UserIdKey);
-            var deviceId = await SecureStorage.Default.GetAsync(DeviceIdKey);
-
-            if (string.IsNullOrEmpty(userId))
-                return false;
-
-            var device = await _supabase.Client
-                .From<UserDeviceInfo>()
-                .Where(x => x.Id == deviceId && x.UserId == userId && x.IsCurrent)
-                .Single();
-
-            return device != null;
-        }
-        catch
-        {
-            await ClearUserSession();
-            return false;
-        }
-    }
-
-    public async Task<(string UserId, string DeviceId)> GetUserSession()
-    {
-        try
-        {
-            var userId = await SecureStorage.Default.GetAsync(UserIdKey);
-            var deviceId = await SecureStorage.Default.GetAsync(DeviceIdKey);
-            return (userId, deviceId);
-        }
-        catch
-        {
-            return (null, null);
-        }
-    }
+    public User CurrentUser => _currentUser;
 
     public async Task<bool> Register(string username, string password, string displayName = null)
     {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
-                return false;
-
-            if (await _supabase.CheckUsernameExists(username))
-                return false;
-
-            var passwordHash = HashPassword(password);
-
-            var user = new User
-            {
-                Username = username,
-                PasswordHash = passwordHash,
-                DisplayName = displayName ?? username
-            };
-
-            // 1. Создаем пользователя
-            var response = await _supabase.Client.From<User>().Insert(user);
-            var createdUser = response.Model;
-
-            // 2. Создаем запись об устройстве
-            var deviceInfo = await GetDeviceInfo();
-            deviceInfo.UserId = createdUser.Id;
-            await _supabase.Client.From<UserDeviceInfo>().Insert(deviceInfo);
-            await _supabase.SetCurrentDevice(createdUser.Id, deviceInfo.Id);
-
-            // 3. Создаем чаты с существующими пользователями
-            var allUsers = await _supabase.GetAllUsersExceptCurrent(createdUser.Id);
-            foreach (var existingUser in allUsers)
-            {
-                // Создаем direct-чат между новым пользователем и существующим
-                await _chatService.GetOrCreateDirectChat(createdUser.Id, existingUser.Id);
-            }
-
-            // Сохраняем сессию
-            await SecureStorage.Default.SetAsync(UserIdKey, createdUser.Id);
-            await SecureStorage.Default.SetAsync(DeviceIdKey, deviceInfo.Id);
-
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Registration error: {ex.Message}");
+        if (await _supabase.Client.From<User>()
+            .Where(x => x.Username == username)
+            .Single() != null)
             return false;
-        }
+
+        var user = new User
+        {
+            Username = username,
+            PasswordHash = HashPassword(password),
+            DisplayName = displayName ?? username
+        };
+
+        var response = await _supabase.Client.From<User>().Insert(user);
+        _currentUser = response.Model;
+
+        await RegisterDevice(_currentUser.Id);
+        await InitializeUserChats(_currentUser.Id);
+
+        return true;
     }
 
     public async Task<bool> Login(string username, string password)
     {
-        try
-        {
-            var user = await _supabase.Client
-                .From<User>()
-                .Where(x => x.Username == username)
-                .Single();
+        var user = await _supabase.Client.From<User>()
+            .Where(x => x.Username == username)
+            .Single();
 
-            if (user == null) return false;
-
-            if (user.PasswordHash != HashPassword(password))
-                return false;
-
-            var deviceInfo = await GetDeviceInfo();
-            deviceInfo.UserId = user.Id;
-            deviceInfo.IsCurrent = true;
-            deviceInfo.LastLogin = DateTime.UtcNow;
-
-            // Деактивируем все другие устройства этого пользователя
-            await _supabase.Client
-                .From<UserDeviceInfo>()
-                .Where(x => x.UserId == user.Id)
-                .Set(x => x.IsCurrent, false)
-                .Update();
-
-            // Если устройство новое - сохраняем, иначе обновляем
-            if (string.IsNullOrEmpty(deviceInfo.Id))
-            {
-                var response = await _supabase.Client.From<UserDeviceInfo>().Insert(deviceInfo);
-                deviceInfo = response.Model;
-            }
-            else
-            {
-                await _supabase.Client.From<UserDeviceInfo>()
-                    .Where(x => x.Id == deviceInfo.Id)
-                    .Set(x => x.IsCurrent, true)
-                    .Set(x => x.LastLogin, DateTime.UtcNow)
-                    .Update();
-            }
-
-            // Сохраняем сессию
-            await SecureStorage.Default.SetAsync(UserIdKey, user.Id);
-            await SecureStorage.Default.SetAsync(DeviceIdKey, deviceInfo.Id);
-
-            return true;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Login error: {ex.Message}");
-            await ClearUserSession();
+        if (user?.PasswordHash != HashPassword(password))
             return false;
-        }
+
+        _currentUser = user;
+        await RegisterDevice(_currentUser.Id);
+        return true;
     }
+
 
     public async Task Logout()
     {
-        try
-        {
-            var (userId, deviceId) = await GetUserSession();
-            if (!string.IsNullOrEmpty(deviceId))
-            {
-                await _supabase.Client
-                    .From<UserDeviceInfo>()
-                    .Where(x => x.Id == deviceId)
-                    .Set(x => x.IsCurrent, false)
-                    .Update();
-            }
-        }
-        finally
-        {
-            await ClearUserSession();
-        }
-    }
+        if (_currentUser == null) return;
 
-    private async Task ClearUserSession()
-    {
+        var deviceId = GetDeviceUniqueId();
+
         try
         {
-            SecureStorage.Default.Remove(UserIdKey);
-            SecureStorage.Default.Remove(DeviceIdKey);
+            // Удаляем текущее устройство
+            await _supabase.Client.From<UserDeviceInfo>()
+                .Where(x => x.UserId == _currentUser.Id && x.DeviceId == deviceId)
+                .Delete();
+
+            _currentUser = null;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"ClearUserSession error: {ex.Message}");
+            Console.WriteLine($"Error during logout: {ex.Message}");
+            // Можно добавить обработку ошибки, если нужно
         }
     }
 
-    private async Task<UserDeviceInfo> GetDeviceInfo()
+    private async Task RegisterDevice(string userId)
     {
-        var deviceId = await GetDeviceId();
-
-        try
+        var deviceInfo = new UserDeviceInfo
         {
-            var existingDevice = await _supabase.Client
-                .From<UserDeviceInfo>()
-                .Where(x => x.DeviceId == deviceId)
-                .Single();
-
-            if (existingDevice != null)
-                return existingDevice;
-        }
-        catch
-        {
-            // Устройство не найдено - создаем новое
-        }
-
-        return new UserDeviceInfo
-        {
-            DeviceId = deviceId,
-            DeviceName = DeviceInfo.Name,
-            DeviceModel = DeviceInfo.Model,
-            OsVersion = DeviceInfo.VersionString,
+            UserId = userId,
+            DeviceName = $"{DeviceInfo.Manufacturer} {DeviceInfo.Model}",
+            DeviceId = GetDeviceUniqueId(),
+            IsCurrent = true,
             LastLogin = DateTime.UtcNow,
             CreatedAt = DateTime.UtcNow
         };
+
+        // Деактивируем все другие устройства пользователя
+        await _supabase.Client.From<UserDeviceInfo>()
+            .Where(x => x.UserId == userId)
+            .Set(x => x.IsCurrent, false)
+            .Update();
+
+        // Проверяем существование устройства
+        var existingDevice = await _supabase.Client.From<UserDeviceInfo>()
+            .Where(x => x.UserId == userId && x.DeviceId == deviceInfo.DeviceId)
+            .Single();
+
+        if (existingDevice == null)
+        {
+            // Новое устройство
+            await _supabase.Client.From<UserDeviceInfo>().Insert(deviceInfo);
+        }
+        else
+        {
+            // Обновляем существующее устройство
+            await _supabase.Client.From<UserDeviceInfo>()
+                .Where(x => x.Id == existingDevice.Id)
+                .Set(x => x.IsCurrent, true)
+                .Set(x => x.LastLogin, DateTime.UtcNow)
+                .Set(x => x.DeviceName, deviceInfo.DeviceName)
+                .Update();
+        }
     }
 
-    private async Task<string> GetDeviceId()
+    private string GetDeviceUniqueId()
     {
-        // Генерируем уникальный ID устройства на основе аппаратных характеристик
-        var deviceId = $"{DeviceInfo.Manufacturer}_{DeviceInfo.Model}_{DeviceInfo.Name}";
+        var deviceInfo = $"{DeviceInfo.Manufacturer}_{DeviceInfo.Model}_{DeviceInfo.Name}";
         using var sha256 = SHA256.Create();
-        var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(deviceId));
-        return Convert.ToBase64String(hash);
+        var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(deviceInfo));
+        return Convert.ToHexString(hash); // Используем HexString вместо Base64 для совместимости
+    }
+
+
+
+    private async Task InitializeUserChats(string userId)
+    {
+        try
+        {
+            // Получаем всех существующих пользователей, кроме нового
+            var existingUsers = await _supabase.Client.From<User>()
+                .Where(x => x.Id != userId)
+                .Get();
+
+            // Для каждого существующего пользователя создаем чат
+            foreach (var user in existingUsers.Models)
+            {
+                await CreateDirectChat(userId, user.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error initializing chats: {ex.Message}");
+        }
+    }
+
+    private async Task CreateDirectChat(string userId1, string userId2)
+    {
+        // Получаем данные второго пользователя
+        var user2 = await _supabase.Client.From<User>()
+            .Where(x => x.Id == userId2)
+            .Single();
+
+        // Создаем новый чат
+        var newChat = new Chat
+        {
+            IsDirectMessage = true,
+            ChatName = user2.DisplayName ?? user2.Username,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        var chatResponse = await _supabase.Client.From<Chat>().Insert(newChat);
+
+        // Добавляем участников
+        await _supabase.Client.From<ChatParticipant>().Insert(new[]
+        {
+        new ChatParticipant
+        {
+            ChatId = chatResponse.Model.Id,
+            UserId = userId1,
+            CreatedAt = DateTime.UtcNow
+        },
+        new ChatParticipant
+        {
+            ChatId = chatResponse.Model.Id,
+            UserId = userId2,
+            CreatedAt = DateTime.UtcNow
+        }
+    });
+    }
+
+
+
+    private string GetDeviceId()
+    {
+        return $"{DeviceInfo.Manufacturer}_{DeviceInfo.Model}";
     }
 
     private string HashPassword(string password)

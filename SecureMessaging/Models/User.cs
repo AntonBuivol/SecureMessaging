@@ -17,10 +17,4 @@ public class User : BaseModel
 
     [Column("display_name")]
     public string DisplayName { get; set; }
-
-    [Column("bio")]
-    public string Bio { get; set; }
-
-    [Column("avatar_url")]
-    public string AvatarUrl { get; set; }
 }

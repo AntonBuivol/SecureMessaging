@@ -1,32 +1,17 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="SecureMessaging.Views.ProfileSettingsPage"
-             Title="Profile Settings">
+             Title="Profile">
 
-    <ContentPage.ToolbarItems>
-        <ToolbarItem Text="Back" Command="{Binding GoBackCommand}" />
-    </ContentPage.ToolbarItems>
+    <StackLayout Padding="20" Spacing="15">
+        <Image Source="user_placeholder.png"
+               WidthRequest="100"
+               HeightRequest="100"
+               Aspect="AspectFill" />
 
-    <ScrollView>
-        <StackLayout Padding="20" Spacing="15">
-            <Frame HorizontalOptions="Center">
-                <StackLayout>
-                    <Image Source="{Binding User.AvatarUrl, FallbackValue='default_avatar.png'}"
-                           WidthRequest="100"
-                           HeightRequest="100"
-                           Aspect="AspectFill" />
+        <Label Text="Display Name" />
+        <Entry Text="{Binding User.DisplayName}" />
 
-                    <Button Text="Change Photo" Command="{Binding ChangePhotoCommand}" />
-                </StackLayout>
-            </Frame>
-
-            <Label Text="Display Name" />
-            <Entry Text="{Binding User.DisplayName}" />
-
-            <Label Text="Bio" />
-            <Editor Text="{Binding User.Bio}" HeightRequest="100" />
-
-            <Button Text="Save" Command="{Binding SaveCommand}" />
-        </StackLayout>
-    </ScrollView>
+        <Button Text="Save" Command="{Binding SaveCommand}" />
+    </StackLayout>
 </ContentPage>

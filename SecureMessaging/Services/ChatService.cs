@@ -1,278 +1,169 @@
 ﻿using SecureMessaging.Models;
 using SecureMessaging.Services;
 using Supabase.Postgrest;
+using static Supabase.Postgrest.Constants;
 
 namespace SecureMessaging.Services;
 
 public class ChatService
 {
     private readonly SupabaseService _supabase;
-    private readonly SignalRService _signalRService;
+    private readonly AuthService _authService;
 
-    public ChatService(SupabaseService supabase, SignalRService signalRService)
+    public ChatService(SupabaseService supabase, AuthService authService)
     {
         _supabase = supabase;
-        _signalRService = signalRService;
-    }
-
-
-    private bool _chatsInitialized = false;
-
-    public async Task InitializeExistingUsersChats()
-    {
-        if (_chatsInitialized) return;
-
-        var allUsers = await _supabase.Client.From<User>().Get();
-        var users = allUsers.Models;
-
-        foreach (var user1 in users)
-        {
-            foreach (var user2 in users.Where(u => u.Id != user1.Id))
-            {
-                await GetOrCreateDirectChat(user1.Id, user2.Id);
-            }
-        }
-
-        _chatsInitialized = true;
-    }
-
-
-
-    public async Task<List<Chat>> GetUserChatsWithParticipants(string userId)
-    {
-        // Получаем все чаты пользователя с участниками
-        var response = await _supabase.Client
-            .From<Chat>()
-            .Filter("chat_participants.user_id", Supabase.Postgrest.Constants.Operator.Equals, userId)
-            .Get();
-
-        var chats = response.Models;
-
-        // Для каждого чата загружаем участников
-        foreach (var chat in chats)
-        {
-            var participantsResponse = await _supabase.Client
-                .From<ChatParticipants>()
-                .Filter("chat_id", Supabase.Postgrest.Constants.Operator.Equals, chat.Id)
-                .Get();
-
-            chat.ChatParticipants = participantsResponse.Models;
-
-            // Загружаем данные пользователей
-            var members = new List<User>();
-            foreach (var participant in chat.ChatParticipants)
-            {
-                var user = await _supabase.Client
-                    .From<User>()
-                    .Filter("id", Supabase.Postgrest.Constants.Operator.Equals, participant.UserId)
-                    .Single();
-
-                if (user != null)
-                {
-                    members.Add(user);
-                }
-            }
-            chat.Members = members;
-        }
-
-        return chats;
-    }
-
-    public async Task<Chat> GetOrCreateDirectChat(string currentUserId, string targetUserId)
-    {
-        // 1. Получаем все чаты текущего пользователя
-        var currentUserChats = await _supabase.Client
-            .From<ChatParticipants>()
-            .Filter(x => x.UserId, Constants.Operator.Equals, currentUserId)
-            .Get();
-
-        // 2. Проверяем каждый чат на наличие целевого пользователя
-        foreach (var participant in currentUserChats.Models)
-        {
-            try
-            {
-                var targetParticipant = await _supabase.Client
-                    .From<ChatParticipants>()
-                    .Filter(x => x.ChatId, Constants.Operator.Equals, participant.ChatId)
-                    .Filter(x => x.UserId, Constants.Operator.Equals, targetUserId)
-                    .Single();
-
-                if (targetParticipant != null)
-                {
-                    // Чат уже существует - возвращаем его
-                    var existingChat = await _supabase.Client
-                        .From<Chat>()
-                        .Filter(x => x.Id, Constants.Operator.Equals, participant.ChatId)
-                        .Single();
-
-                    return existingChat;
-                }
-            }
-            catch
-            {
-                // Участник не найден - продолжаем поиск
-                continue;
-            }
-        }
-
-        // 3. Чат не существует - создаем новый
-        var newChat = new Chat
-        {
-            IsDirectMessage = true,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        };
-
-        // Получаем имя целевого пользователя для названия чата
-        var targetUser = await _supabase.Client
-            .From<User>()
-            .Filter(x => x.Id, Constants.Operator.Equals, targetUserId)
-            .Single();
-
-        newChat.ChatName = targetUser?.DisplayName ?? targetUser?.Username;
-
-        var chatResponse = await _supabase.Client.From<Chat>().Insert(newChat);
-        var createdChat = chatResponse.Model;
-
-        // 4. Добавляем участников
-        await _supabase.Client.From<ChatParticipants>()
-            .Insert(new ChatParticipants { ChatId = createdChat.Id, UserId = currentUserId });
-
-        await _supabase.Client.From<ChatParticipants>()
-            .Insert(new ChatParticipants { ChatId = createdChat.Id, UserId = targetUserId });
-
-        return createdChat;
+        _authService = authService;
     }
 
     public async Task<List<Chat>> GetUserChats(string userId)
     {
-        // First get all chat IDs where the user is a participant
-        var participantResponse = await _supabase.Client
-            .From<ChatParticipants>()
-            .Filter(x => x.UserId, Constants.Operator.Equals, userId)
+        // Получаем только ID чатов пользователя
+        var participants = await _supabase.Client.From<ChatParticipant>()
+            .Select("chat_id")
+            .Filter("user_id", Operator.Equals, userId)
             .Get();
 
-        var chatIds = participantResponse.Models.Select(p => p.ChatId).ToList();
-
-        if (!chatIds.Any())
+        if (!participants.Models.Any())
             return new List<Chat>();
 
-        // Then get all chats with those IDs
-        var chatResponse = await _supabase.Client
-            .From<Chat>()
-            .Filter(x => x.Id, Constants.Operator.In, chatIds)
+        // Получаем полные данные чатов
+        var chatIds = participants.Models.Select(p => p.ChatId).ToList();
+        var chatsResponse = await _supabase.Client.From<Chat>()
+            .Select("*, chat_participants(*)")
+            .Filter("id", Operator.In, chatIds)
             .Get();
 
-        return chatResponse.Models;
+        return chatsResponse.Models;
     }
 
-    public async Task<(Chat Chat, List<User> Participants)> CreateChat(string userId, List<string> participantIds)
+    public async Task<Chat> CreateGroupChat(List<string> memberIds, string chatName)
     {
-        var allParticipants = new List<string> { userId };
-        allParticipants.AddRange(participantIds);
-
-        // Create the chat
+        // Создаем чат
         var chat = new Chat
         {
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            IsDirectMessage = false,
+            ChatName = chatName
         };
 
-        var response = await _supabase.Client
-            .From<Chat>()
-            .Insert(chat);
+        var chatResponse = await _supabase.Client.From<Chat>().Insert(chat);
 
-        var createdChat = response.Model;
-
-        // Add participants
-        foreach (var participantId in allParticipants)
+        // Добавляем участников
+        var participants = memberIds.Select(userId => new ChatParticipant
         {
-            await _supabase.Client
-                .From<ChatParticipants>()
-                .Insert(new ChatParticipants
-                {
-                    ChatId = createdChat.Id,
-                    UserId = participantId
-                });
-        }
+            ChatId = chatResponse.Model.Id,
+            UserId = userId
+        }).ToList();
 
-        // Get participants with user data
-        var participants = await GetChatMembers(createdChat.Id);
+        await _supabase.Client.From<ChatParticipant>().Insert(participants);
 
-        return (createdChat, participants);
+        return chatResponse.Model;
     }
 
-    public async Task<List<User>> GetChatMembers(string chatId)
+
+    public async Task<List<User>> SearchUsers(string query)
     {
-        var response = await _supabase.Client
-            .From<ChatParticipants>()
-            .Filter(x => x.ChatId, Constants.Operator.Equals, chatId)
+        var response = await _supabase.Client.From<User>()
+            .Filter("username", Operator.ILike, $"%{query}%")
             .Get();
 
-        var members = new List<User>();
-        foreach (var participant in response.Models)
+        return response.Models.Where(u => u.Id != _authService.CurrentUser.Id).ToList();
+    }
+
+    public async Task<Chat> GetOrCreateDirectChat(string targetUserId)
+    {
+        var currentUserId = _authService.CurrentUser.Id;
+
+        // Альтернативный способ поиска существующего чата
+        var existingChat = await FindExistingDirectChat(currentUserId, targetUserId);
+        if (existingChat != null)
+            return existingChat;
+
+        // Создание нового чата
+        return await CreateNewDirectChat(currentUserId, targetUserId);
+    }
+
+    private async Task<Chat> FindExistingDirectChat(string userId1, string userId2)
+    {
+        // Получаем все чаты первого пользователя
+        var user1Chats = await _supabase.Client.From<ChatParticipant>()
+            .Select("chat!inner(*)")
+            .Filter("user_id", Operator.Equals, userId1)
+            .Filter("chat.is_direct_message", Operator.Equals, true)
+            .Get();
+
+        // Проверяем каждый чат на наличие второго пользователя
+        foreach (var participant in user1Chats.Models)
         {
-            var user = await _supabase.Client
-                .From<User>()
-                .Filter(x => x.Id, Constants.Operator.Equals, participant.UserId)
+            var exists = await _supabase.Client.From<ChatParticipant>()
+                .Where(x => x.ChatId == participant.ChatId && x.UserId == userId2)
                 .Single();
 
-            if (user != null)
+            if (exists != null)
             {
-                members.Add(user);
+                return await _supabase.Client.From<Chat>()
+                    .Where(x => x.Id == participant.ChatId)
+                    .Single();
             }
         }
+        return null;
+    }
 
-        return members;
+    private async Task<Chat> CreateNewDirectChat(string userId1, string userId2)
+    {
+        var targetUser = await _supabase.Client.From<User>()
+            .Where(x => x.Id == userId2)
+            .Single();
+
+        var newChat = new Chat
+        {
+            IsDirectMessage = true,
+            ChatName = targetUser.DisplayName ?? targetUser.Username,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        var chatResponse = await _supabase.Client.From<Chat>().Insert(newChat);
+
+        await _supabase.Client.From<ChatParticipant>().Insert(new[]
+        {
+        new ChatParticipant
+        {
+            ChatId = chatResponse.Model.Id,
+            UserId = userId1,
+            CreatedAt = DateTime.UtcNow
+        },
+        new ChatParticipant
+        {
+            ChatId = chatResponse.Model.Id,
+            UserId = userId2,
+            CreatedAt = DateTime.UtcNow
+        }
+    });
+
+        return chatResponse.Model;
     }
 
     public async Task<List<Message>> GetChatMessages(string chatId)
     {
-        var response = await _supabase.Client
-            .From<Message>()
-            .Filter(x => x.ChatId, Constants.Operator.Equals, chatId)
-            .Order(x => x.CreatedAt, Constants.Ordering.Ascending)
+        var response = await _supabase.Client.From<Message>()
+            .Where(x => x.ChatId == chatId)
+            .Order(x => x.CreatedAt, Ordering.Ascending)
             .Get();
 
         return response.Models;
     }
 
-    public async Task<Message> SendTextMessage(string chatId, string senderId, string text)
+    public async Task<Message> SendMessage(string chatId, string text)
+{
+    var message = new Message
     {
-        var message = new Message
-        {
-            ChatId = chatId,
-            SenderId = senderId,
-            Content = text,
-            CreatedAt = DateTime.UtcNow
-        };
+        ChatId = chatId,
+        SenderId = _authService.CurrentUser.Id,
+        Content = text,
+        CreatedAt = DateTime.UtcNow
+    };
 
-        var response = await _supabase.Client
-            .From<Message>()
-            .Insert(message);
-
-        var sentMessage = response.Model;
-        await _signalRService.SendMessage(sentMessage);
-        return sentMessage;
-    }
-
-    public async Task<Message> SendMediaMessage(string chatId, string senderId, string mediaUrl, string mediaType)
-    {
-        var message = new Message
-        {
-            ChatId = chatId,
-            SenderId = senderId,
-            MediaUrl = mediaUrl,
-            MediaType = mediaType,
-            CreatedAt = DateTime.UtcNow
-        };
-
-        var response = await _supabase.Client
-            .From<Message>()
-            .Insert(message);
-
-        var sentMessage = response.Model;
-        await _signalRService.SendMessage(sentMessage);
-        return sentMessage;
-    }
+    var response = await _supabase.Client.From<Message>().Insert(message);
+    return response.Model; // Извлекаем модель из ответа
+}
 }

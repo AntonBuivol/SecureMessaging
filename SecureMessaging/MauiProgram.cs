@@ -19,33 +19,19 @@ public static class MauiProgram
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
             });
 
-        // Регистрируем сервисы
-        builder.Services.AddSingleton<SettingsService>();
+        // Регистрация сервисов
         builder.Services.AddSingleton<SupabaseService>();
         builder.Services.AddSingleton<AuthService>();
-        builder.Services.AddSingleton<AppShell>();
         builder.Services.AddSingleton<ChatService>();
-        builder.Services.AddSingleton<SearchService>();
-        builder.Services.AddSingleton<SignalRService>();
-        builder.Services.AddSingleton<IServiceProvider>(provider => provider);
-        builder.Services.AddSingleton<UserService>();
 
-        // Регистрируем страницы
+        // Регистрация страниц
+        builder.Services.AddSingleton<AppShell>();
         builder.Services.AddSingleton<MainPage>();
         builder.Services.AddSingleton<LoginPage>();
         builder.Services.AddSingleton<RegisterPage>();
         builder.Services.AddSingleton<ChatListPage>();
         builder.Services.AddSingleton<ChatPage>();
-        builder.Services.AddSingleton<ProfileSettingsPage>();
         builder.Services.AddSingleton<AppSettingsPage>();
-        builder.Services.AddSingleton<MessagePage>();
-
-        builder.Logging.AddDebug(); // Для логгирования
-        builder.Services.AddLogging(); // Добавляем сервис логгирования
-
-#if DEBUG
-        builder.Logging.AddDebug();
-#endif
 
         return builder.Build();
     }

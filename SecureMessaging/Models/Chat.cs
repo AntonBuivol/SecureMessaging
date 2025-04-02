@@ -1,4 +1,5 @@
-﻿using Supabase.Postgrest.Attributes;
+﻿using AutoMapper.Configuration.Annotations;
+using Supabase.Postgrest.Attributes;
 using Supabase.Postgrest.Models;
 using System.Collections.Generic;
 
@@ -11,10 +12,7 @@ public class Chat : BaseModel
     public string Id { get; set; }
 
     [Column("created_at")]
-    public DateTime CreatedAt { get; set; }
-
-    [Column("updated_at")]
-    public DateTime UpdatedAt { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     [Column("is_direct_message")]
     public bool IsDirectMessage { get; set; }
@@ -22,11 +20,7 @@ public class Chat : BaseModel
     [Column("chat_name")]
     public string ChatName { get; set; }
 
-    // Связи участников чата (через промежуточную таблицу)
-    [Reference(typeof(ChatParticipants))]
-    public List<ChatParticipants> ChatParticipants { get; set; } = new();
-
-    // Непосредственно пользователи-участники чата
-    [Reference(typeof(User))]
-    public List<User> Members { get; set; } = new();
+    // Важно: название свойства должно совпадать с именем таблицы в БД
+    [Reference(typeof(ChatParticipant))]
+    public List<ChatParticipant> chat_participants { get; set; } = new();
 }
