@@ -4,18 +4,39 @@
              Title="Chats">
 
     <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Settings" Command="{Binding GoToSettingsCommand}" />
         <ToolbarItem Text="Logout" Command="{Binding LogoutCommand}" />
     </ContentPage.ToolbarItems>
 
-    <CollectionView ItemsSource="{Binding Chats}"
-                    SelectionMode="Single"
-                    SelectionChangedCommand="{Binding OpenChatCommand}">
-        <CollectionView.ItemTemplate>
-            <DataTemplate>
-                <Frame>
-                    <Label Text="{Binding ChatName}" />
-                </Frame>
-            </DataTemplate>
-        </CollectionView.ItemTemplate>
-    </CollectionView>
+    <Grid>
+        <RefreshView IsRefreshing="{Binding IsRefreshing}" 
+                     Command="{Binding RefreshCommand}">
+            <CollectionView ItemsSource="{Binding Users}"
+                           SelectionMode="Single"
+                           SelectionChangedCommand="{Binding OpenChatCommand}">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Padding="10">
+                            <Frame>
+                                <StackLayout Orientation="Horizontal" Spacing="15">
+                                    <Image Source="user_placeholder.png"
+                                           WidthRequest="50"
+                                           HeightRequest="50"
+                                           Aspect="AspectFill" />
+                                    <Label Text="{Binding DisplayName}" 
+                                           FontSize="16"
+                                           VerticalOptions="Center" />
+                                </StackLayout>
+                            </Frame>
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </RefreshView>
+
+        <ActivityIndicator IsRunning="{Binding IsBusy}"
+                           IsVisible="{Binding IsBusy}"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center" />
+    </Grid>
 </ContentPage>

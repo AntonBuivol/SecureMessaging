@@ -9,33 +9,56 @@ public partial class ChatListPage : ContentPage
 {
     private readonly ChatService _chatService;
     private readonly AuthService _authService;
-    private readonly SupabaseService _supabase;
+    private readonly UserService _userService;
 
-    public ObservableCollection<Chat> Chats { get; } = new();
-    public ObservableCollection<User> SearchResults { get; } = new();
-    public bool IsSearching { get; set; }
+    public ObservableCollection<User> Users { get; } = new();
+    public bool IsRefreshing { get; set; }
+    public bool IsBusy { get; set; }
 
-    public ChatListPage(ChatService chatService, AuthService authService, SupabaseService supabase)
+    public ChatListPage(ChatService chatService, AuthService authService, UserService userService)
     {
         InitializeComponent();
         _chatService = chatService;
         _authService = authService;
-        _supabase = supabase;
+        _userService = userService;
         BindingContext = this;
 
-        LoadChats();
+        LoadUsers();
     }
 
-    private async void LoadChats()
+    private async void LoadUsers()
     {
-        var chats = await _chatService.GetUserChats(_authService.CurrentUser.Id);
-        Chats.Clear();
-
-        foreach (var chat in chats)
+        try
         {
-            Chats.Add(chat);
+            IsBusy = true;
+            OnPropertyChanged(nameof(IsBusy));
+
+            var users = await _userService.GetAllUsersExceptCurrent(_authService.CurrentUser.Id);
+            Users.Clear();
+
+            foreach (var user in users)
+            {
+                Users.Add(user);
+            }
+        }
+        finally
+        {
+            IsBusy = false;
+            OnPropertyChanged(nameof(IsBusy));
         }
     }
+
+    public ICommand RefreshCommand => new Command(async () =>
+    {
+        IsRefreshing = true;
+        OnPropertyChanged(nameof(IsRefreshing));
+
+        await Task.Delay(500); // Small delay for UX
+        LoadUsers();
+
+        IsRefreshing = false;
+        OnPropertyChanged(nameof(IsRefreshing));
+    });
 
     public ICommand LogoutCommand => new Command(async () =>
     {
@@ -50,27 +73,31 @@ public partial class ChatListPage : ContentPage
         }
     });
 
-    // Остальные команды остаются без изменений
-    public ICommand SearchCommand => new Command<string>(async (query) =>
+    public ICommand OpenChatCommand => new Command<User>(async (user) =>
     {
-        if (string.IsNullOrWhiteSpace(query))
+        if (user == null) return;
+
+        try
         {
-            SearchResults.Clear();
-            return;
+            IsBusy = true;
+            OnPropertyChanged(nameof(IsBusy));
+
+            var chat = await _chatService.GetOrCreateDirectChat(user.Id);
+            await Shell.Current.GoToAsync($"ChatPage?chatId={chat.Id}");
         }
-
-        var results = await _chatService.SearchUsers(query);
-        SearchResults.Clear();
-
-        foreach (var user in results)
+        catch (Exception ex)
         {
-            SearchResults.Add(user);
+            await DisplayAlert("Error", $"Failed to start chat: {ex.Message}", "OK");
+        }
+        finally
+        {
+            IsBusy = false;
+            OnPropertyChanged(nameof(IsBusy));
         }
     });
 
-    public ICommand OpenChatCommand => new Command<User>(async (user) =>
+    public ICommand GoToSettingsCommand => new Command(async () =>
     {
-        var chat = await _chatService.GetOrCreateDirectChat(user.Id);
-        await Shell.Current.GoToAsync($"MessagePage?chatId={chat.Id}");
+        await Shell.Current.GoToAsync("AppSettingsPage");
     });
 }

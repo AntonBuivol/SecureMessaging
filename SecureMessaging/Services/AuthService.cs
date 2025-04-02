@@ -20,9 +20,12 @@ public class AuthService
 
     public async Task<bool> Register(string username, string password, string displayName = null)
     {
-        if (await _supabase.Client.From<User>()
+        // Проверяем существование пользователя
+        var existingUser = await _supabase.Client.From<User>()
             .Where(x => x.Username == username)
-            .Single() != null)
+            .Single();
+
+        if (existingUser != null)
             return false;
 
         var user = new User
@@ -36,6 +39,8 @@ public class AuthService
         _currentUser = response.Model;
 
         await RegisterDevice(_currentUser.Id);
+
+        // Создаем чаты со всеми существующими пользователями
         await InitializeUserChats(_currentUser.Id);
 
         return true;
@@ -149,6 +154,7 @@ public class AuthService
         }
     }
 
+
     private async Task CreateDirectChat(string userId1, string userId2)
     {
         // Получаем данные второго пользователя
@@ -183,6 +189,7 @@ public class AuthService
         }
     });
     }
+
 
 
 

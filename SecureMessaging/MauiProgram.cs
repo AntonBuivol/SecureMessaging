@@ -2,7 +2,6 @@
 using SecureMessaging.Services;
 using SecureMessaging.Views;
 using SecureMessaging.Views.Auth;
-using Supabase;
 
 namespace SecureMessaging;
 
@@ -19,10 +18,15 @@ public static class MauiProgram
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
             });
 
+#if DEBUG
+        builder.Logging.AddDebug();
+#endif
+
         // Регистрация сервисов
         builder.Services.AddSingleton<SupabaseService>();
         builder.Services.AddSingleton<AuthService>();
         builder.Services.AddSingleton<ChatService>();
+        builder.Services.AddSingleton<UserService>();
 
         // Регистрация страниц
         builder.Services.AddSingleton<AppShell>();
@@ -31,8 +35,15 @@ public static class MauiProgram
         builder.Services.AddSingleton<RegisterPage>();
         builder.Services.AddSingleton<ChatListPage>();
         builder.Services.AddSingleton<ChatPage>();
+        builder.Services.AddSingleton<ProfileSettingsPage>();
         builder.Services.AddSingleton<AppSettingsPage>();
 
-        return builder.Build();
+        var app = builder.Build();
+
+        // Инициализация Supabase
+        var supabaseService = app.Services.GetRequiredService<SupabaseService>();
+        supabaseService.InitializeAsync().ConfigureAwait(false);
+
+        return app;
     }
 }
